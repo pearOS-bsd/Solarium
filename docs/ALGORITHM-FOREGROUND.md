@@ -36,3 +36,16 @@ Computed the same way with its own amount, height, offset and angle: a second di
 - our **rim light** is a bright white frame with corner marks; the real one is a faint soft edge. The rim light is not part of this filter (it is the SDF `KeyFillHighlight` effect, not run here), so this white frame comes from the filter's own terms (e.g. the bleed/refraction bands) being driven wrongly;
 - the blur: our blur uses a box-filtered mip chain at the LOD the shader asks for; Apple's mips/blur surfaces (downsample + blur passes before the filter, `downsample_blur_vert`...) are not reproduced.
 Most likely causes, to be tested one by one: (1) the block is inferred (the 36 half-float colour matrices and several scale factors, e.g. the `1.6` and the layer scale, are my reading of the CPU code, with the layer scale and alpha assumed 1); (2) the real glass first renders the backdrop through blur passes; (3) the `Face`/`Bleed`/`Shadow` matrix order and the YCC maths are assumed; (4) macOS 27.0 values on a 26.7 shader (the 27.0 filter has 22 more keys, e.g. `FaceColorMatrixMaxLuma`).
+
+## Ablation of the background block (2026-11-16, `tools/vk-run/ablation.py`)
+Mean absolute difference to the real capture inside the glass box (255 scale), one term changed at a time:
+| change | diff |
+|---|---|
+| base (values of the real capture, block as I inferred it) | 59.1 |
+| bleed amount 0 / shadow amount 0 / refraction 0 / refraction opacity 0 or 1 | 59.1 / 59.1 / 58.0 / 59.1 |
+| bleed opacity 0 | 60.3 |
+| blur radius x4 | 60.6 |
+| **face opacity 0** | **25.3** |
+| all colour matrices zero | 104.7 |
+So the too-bright result comes from the **face colour term** (the `FaceColorMatrix`: white 1.125, black 0.125, saturation 1.3, fill 0.125). The 27.0 filter has an extra key `FaceColorMatrixMaxLuma` (0.45, and `...SDR`) that the 26.7 shader (the only one we have) does not know: the most likely reason the real glass stays darker. A linear fit of the real interior against a Gaussian-blurred background prefers a larger blur (sigma >= 10) with gain ~0.9 and a small offset: our blur is too weak as well. Neither can be settled with a 26.7 shader against a 27.0 capture.
+Decision needed from the owner: the 27.0 `QuartzCore/default.metallib` and `QuartzCore` binary exist on the friend's Mac; reading them (not committing) would let us match the capture exactly, otherwise we need a capture from a macOS 26.x Mac with a GPU.
