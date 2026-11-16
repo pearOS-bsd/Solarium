@@ -36,3 +36,39 @@ The pearOS Arch settings (blur 2, corner radius 16 ...) describe a blur-based ap
 
 ## Not yet read
 The Metal functions that implement the displacement and highlight (`QuartzCore/Resources/default.metallib`, 160 MB AIR, being tried with metal2vulkan), the order of the passes, and how `NSGlassEffectView` / `GlassMaterialProvider` choose these parameters for a material (variants: regular, clear, tinted, interactive, subdued).
+
+## The glass filter: parameters and defaults (`CA::OGL::GlassBackgroundFilter::render`, decompiled with REA)
+Read from `CA::OGL::GlassBackgroundFilter::render` (0x7ff80d236774 in the extracted QuartzCore 26.7.2 x86_64; `GlassForegroundFilter::render` is at 0x7ff80d2392d0, not read yet). The filter takes its parameters from the layer filter's key/value array (`Render::KeyValueArray`) by **numeric key**, with the default Apple uses when the key is absent. The values are written into the shader's constant block (the 336 bytes at binding 2 of `glass_background_*`): the half-float matrices first, the floats after (struct offsets in the Context: floats from +0xB0 on).
+
+| key (hex) | default | read as |
+|---|---|---|
+| 0x1ab | vec2 (0, 10) | offset |
+| 0x177 / 0x179 / 0x176 / 0x178 | colour; 1.0 / 0.0 / 1.0 | tint colour and its three YCC composite factors (`ColorMatrix::set_ycc_composite`) |
+| 0x150 / 0x152 / 0x14f / 0x151 | colour; 1.0 / 0.0 / 1.0 | second colour (same composite) |
+| 0x1a6 / 0x1a8 / 0x1a5 / 0x1a7 | colour; 1.0 / 0.0 / 1.0 | third colour (same composite) |
+| 0x187 | 1.2 | a ratio compared with the destination scale (clamped; `(min(scale,v)-1)/(v-1)` when v > 1.0000001) |
+| 0x19f | 0.0 | extra alpha added to the third colour when > 0 |
+| 0x182 / 0x183 | -150 / 60 | |
+| 0x18b / 0x18c | 100 / 50 | |
+| 0x195 / 0x196 | -11 / -3 | |
+| 0x164 | 30 | blur radius (scaled by `1.6 * scale`) |
+| (function) `get_glass_filter_bleed_blur_radius` | | bleed blur radius |
+| 0x14d / 0x156 | 400 / 500 | (500 is stored as 1/500) |
+| 0x1a1 / 0x1aa | 200 / 250 | (250 is stored as 1/250) |
+| (function) `get_glass_filter_shadow_blur_radius` | | shadow blur radius |
+| 0x1ad | 25 | stored as 1/25 |
+| 0x15f / 0x160 / 0x161 / 0x162 | 1.0 / 0.1 / 0.1 / 0.4 | a falling ramp (stored as differences: 0.9, 0.0, -0.3) |
+| 0x15a / 0x15b / 0x15c / 0x15d | -450 / -3 / -0 / 0 | |
+| 0x154 / 0x155 | -400 / -42 | |
+| 0x157 | 0.2 | also selects the pipeline flag (`<= 0` adds 2) |
+| 0x17a | 1.0 | |
+| 0x153 (int) | 0 | picks (1,0) or (-1,1) as a sign pair |
+| 0x1a9 | -50 | |
+| 0x1ac | 1.0 | clamped to 0..1 |
+| 0x199 | 0.75 | |
+| 0x1ae | 1.0 | |
+| 0x19d (int) / 0x19b / 0x19c / 0x19e | 0 / -2.5 / -1.5 / 0.97 | (when 0x19d != 0 an extra term `1 - ratio` is set) |
+| 0x166 / 0x167 (int) | 0.0 / 0 | passed through `powf` and a flag |
+Two code paths: with an SDF (`emit_sdf_bounds`, pipeline flag 0x45) or without (0x44): the same values go to different offsets (+0xB0.. vs +0x100..).
+
+**Unverified:** the *names* of the keys (the numbers are the CAFilter input-key ids; the table of id -> name has to be read from the key-name table of QuartzCore), what each number means visually, and the exact byte offsets of each value in the block (the decompiler shows Context field indices, not the final packed layout of the Metal struct).
