@@ -18,20 +18,22 @@ static void mkbuf(VkDeviceSize sz,VkBufferUsageFlags u,VkBuffer*b,VkDeviceMemory
  VkMemoryRequirements r;vkGetBufferMemoryRequirements(dev,*b,&r);
  VkMemoryAllocateInfo ai={VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,0,r.size,memtype(r.memoryTypeBits,VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)};
  CK(vkAllocateMemory(dev,&ai,0,m));CK(vkBindBufferMemory(dev,*b,*m,0));CK(vkMapMemory(dev,*m,0,sz,0,map));}
+static uint32_t gMips=1;
 static void mkimg(VkFormat f,VkImageUsageFlags u,VkImage*im,VkDeviceMemory*m,VkImageView*v){
- VkImageCreateInfo ii={VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};ii.imageType=VK_IMAGE_TYPE_2D;ii.format=f;ii.extent=(VkExtent3D){W,H,1};ii.mipLevels=1;ii.arrayLayers=1;ii.samples=VK_SAMPLE_COUNT_1_BIT;ii.tiling=VK_IMAGE_TILING_OPTIMAL;ii.usage=u;ii.initialLayout=VK_IMAGE_LAYOUT_UNDEFINED;
+ VkImageCreateInfo ii={VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};ii.imageType=VK_IMAGE_TYPE_2D;ii.format=f;ii.extent=(VkExtent3D){W,H,1};ii.mipLevels=(u&VK_IMAGE_USAGE_SAMPLED_BIT)?gMips:1;ii.arrayLayers=1;ii.samples=VK_SAMPLE_COUNT_1_BIT;ii.tiling=VK_IMAGE_TILING_OPTIMAL;ii.usage=u;ii.initialLayout=VK_IMAGE_LAYOUT_UNDEFINED;
  CK(vkCreateImage(dev,&ii,0,im));VkMemoryRequirements r;vkGetImageMemoryRequirements(dev,*im,&r);
  VkMemoryAllocateInfo ai={VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,0,r.size,memtype(r.memoryTypeBits,VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
  CK(vkAllocateMemory(dev,&ai,0,m));CK(vkBindImageMemory(dev,*im,*m,0));
- VkImageViewCreateInfo vi={VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};vi.image=*im;vi.viewType=VK_IMAGE_VIEW_TYPE_2D;vi.format=f;vi.subresourceRange=(VkImageSubresourceRange){VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};CK(vkCreateImageView(dev,&vi,0,v));}
+ VkImageViewCreateInfo vi={VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};vi.image=*im;vi.viewType=VK_IMAGE_VIEW_TYPE_2D;vi.format=f;vi.subresourceRange=(VkImageSubresourceRange){VK_IMAGE_ASPECT_COLOR_BIT,0,(u&VK_IMAGE_USAGE_SAMPLED_BIT)?gMips:1,0,1};CK(vkCreateImageView(dev,&vi,0,v));}
 static VkShaderModule mod(const char*p){FILE*f=fopen(p,"rb");if(!f){perror(p);exit(1);}fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);uint32_t*d=malloc(n);fread(d,1,n,f);fclose(f);
  VkShaderModuleCreateInfo si={VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,0,0,n,d};VkShaderModule m;CK(vkCreateShaderModule(dev,&si,0,&m));return m;}
 static void barrier(VkCommandBuffer c,VkImage im,VkImageLayout o,VkImageLayout n,VkAccessFlags sa,VkAccessFlags da,VkPipelineStageFlags ss,VkPipelineStageFlags ds){
- VkImageMemoryBarrier b={VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,0,sa,da,o,n,VK_QUEUE_FAMILY_IGNORED,VK_QUEUE_FAMILY_IGNORED,im,{VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1}};
+ VkImageMemoryBarrier b={VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,0,sa,da,o,n,VK_QUEUE_FAMILY_IGNORED,VK_QUEUE_FAMILY_IGNORED,im,{VK_IMAGE_ASPECT_COLOR_BIT,0,VK_REMAINING_MIP_LEVELS,0,1}};
  vkCmdPipelineBarrier(c,ss,ds,0,0,0,0,0,1,&b);}
 int main(int argc,char**argv){
  if(argc<5){fprintf(stderr,"usage: run VERT FRAG DEV KIND\n");return 2;}
  int kind=atoi(argv[4]);
+ const char*blockfile=argc>5?argv[5]:0; if(blockfile) gMips=10;
  VkApplicationInfo ai={VK_STRUCTURE_TYPE_APPLICATION_INFO};ai.apiVersion=VK_API_VERSION_1_3;
  VkInstanceCreateInfo ic={VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,0,0,&ai};VkInstance inst;CK(vkCreateInstance(&ic,0,&inst));
  uint32_t n=0;vkEnumeratePhysicalDevices(inst,&n,0);VkPhysicalDevice pds[8];if(n>8)n=8;vkEnumeratePhysicalDevices(inst,&n,pds);
@@ -48,17 +50,17 @@ int main(int argc,char**argv){
  /* images */
  VkImage cimg,timg;VkDeviceMemory cm,tm;VkImageView cv,tv;
  mkimg(VK_FORMAT_R8G8B8A8_UNORM,VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_TRANSFER_SRC_BIT,&cimg,&cm,&cv);
- mkimg(VK_FORMAT_R8G8B8A8_UNORM,VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_TRANSFER_DST_BIT,&timg,&tm,&tv);
+ mkimg(VK_FORMAT_R8G8B8A8_UNORM,VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_TRANSFER_DST_BIT|VK_IMAGE_USAGE_TRANSFER_SRC_BIT,&timg,&tm,&tv);
  VkBuffer sb;VkDeviceMemory sm;unsigned char*sp;mkbuf(W*H*4,VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT,&sb,&sm,(void**)&sp);
  for(int y=0;y<H;y++)for(int x=0;x<W;x++){unsigned char*p=sp+(y*W+x)*4;int gx=(x%64<3),gy=(y%64<3);
   p[0]=(unsigned char)(255*x/W);p[1]=(unsigned char)(255*y/H);p[2]=(unsigned char)(255-255*x/W);p[3]=255;
   if(gx||gy){p[0]=p[1]=p[2]=255;} if(((x/32)+(y/32))%2==0&&!(gx||gy)){p[0]/=2;p[1]/=2;p[2]/=2;}}
  FILE*fb=fopen("bg.rgba","wb");fwrite(sp,1,W*H*4,fb);fclose(fb);
- VkSampler smp;VkSamplerCreateInfo sci={VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};sci.magFilter=sci.minFilter=VK_FILTER_LINEAR;sci.addressModeU=sci.addressModeV=sci.addressModeW=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;CK(vkCreateSampler(dev,&sci,0,&smp));
+ VkSampler smp;VkSamplerCreateInfo sci={VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};sci.magFilter=sci.minFilter=VK_FILTER_LINEAR;sci.mipmapMode=VK_SAMPLER_MIPMAP_MODE_LINEAR;sci.maxLod=16;sci.addressModeU=sci.addressModeV=sci.addressModeW=VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;CK(vkCreateSampler(dev,&sci,0,&smp));
  /* uniform buffers */
  VkBuffer u0,u1,u2;VkDeviceMemory um0,um1,um2;float*p0,*p1,*p2;
- mkbuf(128,VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,&u0,&um0,(void**)&p0);mkbuf(192,VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,&u1,&um1,(void**)&p1);mkbuf(80,VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,&u2,&um2,(void**)&p2);
- memset(p0,0,128);memset(p1,0,192);memset(p2,0,80);
+ mkbuf(128,VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,&u0,&um0,(void**)&p0);mkbuf(384,VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,&u1,&um1,(void**)&p1);mkbuf(80,VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,&u2,&um2,(void**)&p2);
+ memset(p0,0,128);memset(p1,0,384);memset(p2,0,80);
  p0[0]=p0[5]=p0[10]=p0[15]=1; /* identity clip matrix */
  /* block 0: half extents, kind, mix */ p1[0]=170;p1[1]=100;p1[2]=(float)kind;p1[3]=0;
  /* block 1: 2x2 mapping of the normal */ p1[4]=1;p1[5]=0;p1[6]=0;p1[7]=1;
@@ -69,6 +71,7 @@ int main(int argc,char**argv){
  p1[24]=-4.5f;p1[25]=-3.0f;p1[26]=0;p1[27]=1;  /* edge start, end, opacity start, end */
  p1[28]=0;p1[29]=1;                           /* refraction sin, cos */
  p2[0]=1; /* intensity */
+ if(blockfile){FILE*bf=fopen(blockfile,"rb");if(!bf){perror(blockfile);return 1;}size_t rn=fread(p1,1,384,bf);fclose(bf);printf("block from %s (%zu bytes)\n",blockfile,rn);}
  /* pipeline */
  VkDescriptorSetLayoutBinding b[4]={{0,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,1,VK_SHADER_STAGE_VERTEX_BIT},{1,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,1,VK_SHADER_STAGE_FRAGMENT_BIT},{2,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,1,VK_SHADER_STAGE_FRAGMENT_BIT},{3,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,1,VK_SHADER_STAGE_FRAGMENT_BIT}};
  VkDescriptorSetLayoutCreateInfo dl={VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,0,0,4,b};VkDescriptorSetLayout dsl;CK(vkCreateDescriptorSetLayout(dev,&dl,0,&dsl));
@@ -94,7 +97,7 @@ int main(int argc,char**argv){
  VkBuffer vbuf;VkDeviceMemory vmem;void*vmap;mkbuf(sizeof vx,VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,&vbuf,&vmem,&vmap);memcpy(vmap,vx,sizeof vx);
  VkDescriptorPoolSize ps[2]={{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,3},{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,1}};VkDescriptorPoolCreateInfo dpc={VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,0,0,1,2,ps};VkDescriptorPool dp;CK(vkCreateDescriptorPool(dev,&dpc,0,&dp));
  VkDescriptorSetAllocateInfo da={VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,0,dp,1,&dsl};VkDescriptorSet ds;CK(vkAllocateDescriptorSets(dev,&da,&ds));
- VkDescriptorBufferInfo bi0={u0,0,128},bi1={u1,0,192},bi2={u2,0,80};VkDescriptorImageInfo ii={smp,tv,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+ VkDescriptorBufferInfo bi0={u0,0,128},bi1={u1,0,384},bi2={u2,0,80};VkDescriptorImageInfo ii={smp,tv,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
  VkWriteDescriptorSet wr[4]={{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,0,ds,0,0,1,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,0,&bi0},{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,0,ds,1,0,1,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,0,&bi1},{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,0,ds,2,0,1,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,0,&bi2},{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,0,ds,3,0,1,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,&ii}};
  vkUpdateDescriptorSets(dev,4,wr,0,0);
  VkCommandPoolCreateInfo cpi={VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,0,0,qi.queueFamilyIndex};VkCommandPool cp;CK(vkCreateCommandPool(dev,&cpi,0,&cp));
@@ -102,6 +105,16 @@ int main(int argc,char**argv){
  VkCommandBufferBeginInfo cbi={VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};CK(vkBeginCommandBuffer(cmd,&cbi));
  barrier(cmd,timg,VK_IMAGE_LAYOUT_UNDEFINED,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,0,VK_ACCESS_TRANSFER_WRITE_BIT,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT);
  VkBufferImageCopy rg={0,0,0,{VK_IMAGE_ASPECT_COLOR_BIT,0,0,1},{0,0,0},{W,H,1}};vkCmdCopyBufferToImage(cmd,sb,timg,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,1,&rg);
+ for(uint32_t m=1;m<gMips;m++){ /* mip chain: level m-1 -> m, box filter by linear blit */
+  VkImageMemoryBarrier pb={VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,0,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,VK_QUEUE_FAMILY_IGNORED,VK_QUEUE_FAMILY_IGNORED,timg,{VK_IMAGE_ASPECT_COLOR_BIT,m-1,1,0,1}};
+  vkCmdPipelineBarrier(cmd,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,0,0,0,1,&pb);
+  int sw=W>>(m-1),sh=H>>(m-1),dw=sw>1?sw/2:1,dh=sh>1?sh/2:1;
+  VkImageBlit bl={{VK_IMAGE_ASPECT_COLOR_BIT,m-1,0,1},{{0,0,0},{sw,sh,1}},{VK_IMAGE_ASPECT_COLOR_BIT,m,0,1},{{0,0,0},{dw,dh,1}}};
+  vkCmdBlitImage(cmd,timg,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,timg,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,1,&bl,VK_FILTER_LINEAR);}
+ if(gMips>1){ VkImageMemoryBarrier lb={VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,0,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,VK_QUEUE_FAMILY_IGNORED,VK_QUEUE_FAMILY_IGNORED,timg,{VK_IMAGE_ASPECT_COLOR_BIT,gMips-1,1,0,1}};
+  vkCmdPipelineBarrier(cmd,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,0,0,0,1,&lb);
+  barrier(cmd,timg,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,VK_ACCESS_TRANSFER_READ_BIT,VK_ACCESS_SHADER_READ_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);}
+ else
  barrier(cmd,timg,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_SHADER_READ_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
  barrier(cmd,cimg,VK_IMAGE_LAYOUT_UNDEFINED,VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,0,VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
  VkRenderingAttachmentInfo ra={VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};ra.imageView=cv;ra.imageLayout=VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;ra.loadOp=VK_ATTACHMENT_LOAD_OP_CLEAR;ra.storeOp=VK_ATTACHMENT_STORE_OP_STORE;
