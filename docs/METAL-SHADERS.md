@@ -10,10 +10,10 @@ Main ones: `sdf_gen_field`, `sdf_gen_gradients` (build the distance field and it
 
 ## Experiment: metal2vulkan on Apple's shaders (2026-11-16)
 Tool: github.com/steelbrain/metal2vulkan 0.2.0 (GPL-2.0-or-later OR LGPL-3.0-or-later; used only as a tool here, nothing copied), built with nightly-2026-11-03, profile `intel-irisxe-anv`.
-| shader | result |
-|---|---|
-| SkyLight `BlurComposite`, `UberCompositeFragment`, `ShadowHorizontalBlurFragment` | SPIR-V written, `spirv-val` vulkan1.2 and 1.4 PASS |
-| QuartzCore `sdf_gen_field`, `sdf_gen_gradients` | written, `spirv-val` PASS |
-| QuartzCore `glass_background_sdf`, `glass_foreground_sdf` (with `sdf_filter_vert`) | written; `spirv-val` of this machine (v2025.1) rejects capability 6030 (`FMAKHR`, newer than the validator), so run with `--no-spirv-val`: NOT validated |
-| `glass_background`, `glass_foreground`, `displacement_map` | "UnmatchedVarying": the vertex function I paired them with is not theirs (6 candidates tried); the right pair is not found yet |
-So Apple's own glass shaders can be turned into Vulkan SPIR-V. Not done: running them on a GPU, checking the pixels against the Mac, the exact vertex descriptors (mine are placeholders: 8 Float4 attributes).
+| shader (both `_lpf` and `_lph`) | vertex function that pairs with it | result |
+|---|---|---|
+| `glass_background`, `glass_background_no_bleed`, `glass_foreground`, `displacement_map` | `variable_blur_vert` | SPIR-V written, `spirv-val` vulkan1.2 and 1.4 PASS |
+| `glass_background_sdf`, `glass_background_sdf_no_bleed`, `glass_foreground_sdf`, `sdf_gen_field`, `sdf_gen_gradients` | `sdf_filter_vert` | SPIR-V written, `spirv-val` PASS |
+| SkyLight `BlurComposite`, `UberCompositeFragment`, `ShadowHorizontalBlurFragment` | their own vertex functions | PASS |
+**18 of 18 glass shaders translate and validate** with SPIRV-Tools v2026.4 (v2025.1 rejects the `FMA` capability 6030 the translator emits). The pairing was found by trying every `_lpf` vertex function: only `variable_blur_vert` matched the first group's varyings (the others give `UnmatchedVarying`).
+Not done: running them on a GPU, checking pixels against the Mac, real vertex descriptors (mine are placeholders: 8 Float4 attributes), the resource bindings (textures, constants) the effects set up.
