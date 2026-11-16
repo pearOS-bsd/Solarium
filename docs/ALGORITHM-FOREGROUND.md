@@ -54,3 +54,15 @@ Decision needed from the owner: the 27.0 `QuartzCore/default.metallib` and `Quar
 No 27.0 shader and no 26.x capture are available, so ten knobs of the block were tuned against the real capture (random search, 260 runs of the real shader on Intel Xe, objective = mean absolute difference inside the glass box without the "Glass" label): difference **59.1 -> 8.8** (of 255). Image: `docs/img/glass-background-fit-vs-real.png` (left ours, right real macOS 27.0).
 Fitted values (starting from the inferred block): blur radius 8 -> **59.9** (x1.6 included), bleed radius 56 -> **1.0**, face opacity 1 -> **0.0**, blur opacities (0.8, 0.4, 0.5, 1) -> **(0.68, 0.69, 0.76, 1.0)**, refraction amount scale 1 -> **1.08**, bleed opacity 0.8 -> **0.19**, bleed amount scale 1 -> **1.25**.
 Read it as: the face colour term is off (consistent with the 27.0-only `FaceColorMatrixMaxLuma`), the blur is a single wide blur (about LOD 5.9) instead of the near/far pair, the bleed is weak. These are the numbers that make a 26.7 shader look like the 27.0 capture on this one scene; they are NOT Apple's values and must not be reused for other sizes or backgrounds without a new fit. Remaining visible differences: the real glass keeps a bit more of the checker contrast, has a darker rim line, and the label.
+
+## The same fit on the other scenes (2026-11-16)
+`fit.py SCENE W H RADIUS` per scene (each run in its own directory: the first attempt ran three fits at once on shared temp files and was invalid). Mean absolute difference inside the glass (255 scale), start = block inferred from the capture's own values, end = after the 260-run fit:
+| scene | start | fitted | fitted knobs: blur, bleed, face, blur opacities o0..o3, refraction scale, bleed opacity, bleed amount scale |
+|---|---|---|---|
+| regular 340x200 r60 | 59.1 | 8.8 | 59.9, 1.0, 0.0, 0.68 0.69 0.76 1.0, 1.08, 0.19, 1.25 |
+| regular 200x200 r100 (disc) | 48.7 | 7.3 | 51.1, 31.9, 0.0, 0.69 0.83 0.83 1.0, 1.00, 0.17, 1.49 |
+| regular 120x120 r60 (disc) | 45.5 | 7.9 | 46.5, 131.0, 0.0, 0.22 1.0 1.0 0.95, 0.0, 0.59, 0.45 |
+| **clear 340x200 r60** | 110.7 | **3.3** | 12.1, 10.1, 0.1, 0.2 0.16 0.67 0.3, 1.01, 0.0, 0.89 |
+Image: `docs/img/glass-fits-vs-real.png` (rows: 200x200, 120x120, clear; left ours, right real). All three look like the real capture; `clear` is nearly identical, **including the bright rim and the corner marks** (the white frame with corner hooks that looked like a bug in the first run is part of the real clear glass).
+What the fits agree on: regular = **one wide blur (radius ~46-60 in the block, i.e. LOD ~5.6-5.9) and the face colour term off (0)**; clear = a **narrow blur (~12)** and a small face term, with the bleed/refraction terms carrying the look. The other knobs vary from scene to scene (they trade against each other, so they are not individually meaningful): do not read them as Apple's values.
+Still missing for a real implementation: the rule that derives the block from (style, size) the way the system does (`GlassMaterialProvider` / the AppKit side), the 27.0 shader differences, the `KeyFillHighlight` rim effect, the label/vibrancy.
