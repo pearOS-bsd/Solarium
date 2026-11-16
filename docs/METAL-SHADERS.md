@@ -17,3 +17,13 @@ Tool: github.com/steelbrain/metal2vulkan 0.2.0 (GPL-2.0-or-later OR LGPL-3.0-or-
 | SkyLight `BlurComposite`, `UberCompositeFragment`, `ShadowHorizontalBlurFragment` | their own vertex functions | PASS |
 **18 of 18 glass shaders translate and validate** with SPIRV-Tools v2026.4 (v2025.1 rejects the `FMA` capability 6030 the translator emits). The pairing was found by trying every `_lpf` vertex function: only `variable_blur_vert` matched the first group's varyings (the others give `UnmatchedVarying`).
 Not done: running them on a GPU, checking pixels against the Mac, real vertex descriptors (mine are placeholders: 8 Float4 attributes), the resource bindings (textures, constants) the effects set up.
+
+## Resource layout of `glass_background_lpf` (read from the translated SPIR-V, 2026-11-16)
+| where | what |
+|---|---|
+| set 0, binding 2 | buffer, array of 84 `uint` (336 bytes) in the vertex stage; array of 21 `uvec4` (336 bytes) in the fragment stage: the same Metal buffer(2), the per-draw constants of the effect |
+| set 0, binding 3 | buffer, array of 20 `uint` (80 bytes) |
+| set 0, binding 4 / 5 | the sampled 2D float image and its sampler (the background texture) |
+| push constants, offsets 64 and 68 | two `uint` (added by the translator for the Metal draw parameters) |
+| fragment outputs | location 0 (and 1 in the vertex-to-fragment interface) |
+What is in the 336-byte block (the field distance, curvature, height, angle values that `configureLayer:transaction:` records: kind 7, height, curvature, angle, maskOffset) is the next thing to read: the Metal function reads it by byte offset, so the fields come from the shader's loads, not from names.
