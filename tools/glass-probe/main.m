@@ -76,10 +76,16 @@ static void DumpLayer(NSMutableString *s, CALayer *l, int depth) {
     for (CALayer *c in l.sublayers) DumpLayer(s, c, depth + 1);
 }
 
+@interface ProbeWindow : NSWindow @end
+@implementation ProbeWindow
+- (BOOL)canBecomeKeyWindow { return YES; }
+- (BOOL)canBecomeMainWindow { return YES; }
+@end
+
 static NSString *WindowNumberOf(NSWindow *w) { return [NSString stringWithFormat:@"%ld", (long)w.windowNumber]; }
 
 static void Scene(NSString *name, NSInteger style, CGFloat radius, NSColor *tint, CGFloat gw, CGFloat gh, void (^done)(void)) {
-    NSWindow *win = [[NSWindow alloc] initWithContentRect:NSMakeRect(80, 120, W, H) styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+    NSWindow *win = [[ProbeWindow alloc] initWithContentRect:NSMakeRect(80, 120, W, H) styleMask:(NSWindowStyleMaskBorderless) backing:NSBackingStoreBuffered defer:NO];
     win.releasedWhenClosed = NO; win.opaque = YES; win.hasShadow = NO;
     NSImageView *bg = [[NSImageView alloc] initWithFrame:NSMakeRect(0, 0, W, H)]; bg.image = TestBackground(); bg.imageScaling = NSImageScaleNone;
     win.contentView = bg;
@@ -92,10 +98,16 @@ static void Scene(NSString *name, NSInteger style, CGFloat radius, NSColor *tint
         @try { [glass setValue:@(style) forKey:@"style"]; } @catch (id e) { [report appendFormat:@"style: %@\n", e]; }
         @try { [glass setValue:@(radius) forKey:@"cornerRadius"]; } @catch (id e) { [report appendFormat:@"cornerRadius: %@\n", e]; }
         if (tint) @try { [glass setValue:tint forKey:@"tintColor"]; } @catch (id e) {}
+        NSTextField *lab = [NSTextField labelWithString:@"Glass"]; lab.font = [NSFont systemFontOfSize:28 weight:NSFontWeightSemibold]; lab.textColor = NSColor.labelColor;
+        lab.frame = NSMakeRect(0, gh/2 - 18, gw, 36); lab.alignment = NSTextAlignmentCenter;
+        NSView *content = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, gw, gh)]; [content addSubview:lab];
+        @try { [glass setValue:content forKey:@"contentView"]; } @catch (id e) { [report appendFormat:@"contentView: %@\n", e]; }
         [bg addSubview:glass];
     }
     [win makeKeyAndOrderFront:nil]; [NSApp activateIgnoringOtherApps:YES];
+    NSMutableString *state = [NSMutableString string];
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2*NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [report appendFormat:@"\nwindow: key=%d main=%d visible=%d  app active=%d  appearance=%@\nReduce Transparency=%d  Increase Contrast=%d\n", win.isKeyWindow, win.isMainWindow, win.isVisible, NSApp.isActive, win.effectiveAppearance.name, NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency, NSWorkspace.sharedWorkspace.accessibilityDisplayShouldIncreaseContrast];
         if (glass) { [report appendString:@"\n--- view properties ---\n"]; Dump(report, @"", @"view", glass);
             [report appendString:@"\n--- layer tree ---\n"]; [glass layoutSubtreeIfNeeded]; DumpLayer(report, glass.layer, 0); }
         [report writeToFile:[gOut stringByAppendingFormat:@"/%@.txt", name] atomically:YES encoding:NSUTF8StringEncoding error:nil];
