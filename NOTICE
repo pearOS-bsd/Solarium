@@ -1,0 +1,5 @@
+Solarium
+Copyright (c) pearOS-bsd contributors. BSD-2-Clause (see LICENSE).
+
+No file in this repository comes from Apple. The behaviour is read from the real frameworks of macOS 26.7.2 (class lists, decompilation with REA / Ghidra, measurements) and written again.
+The values of the glass material come from the pearOS settings (pearOS-archlinux/pearos-settings), which were calibrated to match macOS; see docs/EVIDENCE.md.
