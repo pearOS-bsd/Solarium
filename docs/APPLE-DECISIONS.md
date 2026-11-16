@@ -72,3 +72,22 @@ Read from `CA::OGL::GlassBackgroundFilter::render` (0x7ff80d236774 in the extrac
 Two code paths: with an SDF (`emit_sdf_bounds`, pipeline flag 0x45) or without (0x44): the same values go to different offsets (+0xB0.. vs +0x100..).
 
 **Unverified:** the *names* of the keys (the numbers are the CAFilter input-key ids; the table of id -> name has to be read from the key-name table of QuartzCore), what each number means visually, and the exact byte offsets of each value in the block (the decompiler shows Context field indices, not the final packed layout of the Metal struct).
+
+## Names of the glass filter keys (runtime, `tools/filter-keys.m`; 2026-11-16)
+`+[CAFilter filterWithType:@"glassBackground"]` has **55 input keys**, `glassForeground` has **13** (`-inputKeys`; the filter-type constants are `kCAFilterGlassBackground` / `kCAFilterGlassForeground`, instantiated by `CA::OGL::initialize_filters`).
+- glassBackground: SourceSublayerName; InnerRefractionAmount/Height; OuterRefractionAmount/Height; RefractionDistance0/1; RefractionOpacity; BlurRadius; BlurOpacity0..4; BlurDistance0..4; FaceOpacity; FaceColorMatrix{White,Black,Saturation,FillColor}; BleedAmount/Height/BlurRadius/Distance0/Distance1/Opacity/DarkenBlend; BleedColorMatrix{...}; ShadowOffset/Amount/Height/Opacity/DistanceOffset/BlurRadius/Radius; ShadowColorMatrix{...}; SDRHoldingToneEnabled/White; SDRGradientDistance0/1; SDRShadowOpacity; MaxHeadroom; ShadowVibrancyContribution; Clamp; ClampPreserveHue.
+- glassForeground: SourceSublayerName; RefractionAmount/Height/Offset/Angle; AberrationAmount/Height/Offset/Angle; EdgeStart/End; EdgeOpacityStart/End.
+
+### Numeric id -> name (partly solved)
+The ids that `GlassBackgroundFilter::render` uses are positions in the **alphabetical list of all CAFilter input keys** (the table is global, other filters' keys sit in between). Anchored on `ShadowOffset` = 0x1ab (it is the only vec2, default (0,10); `ShadowRadius` = 0x1ad default 25 and the function `get_glass_filter_shadow_blur_radius` agree), the **tail is contiguous and verified by type and default**:
+| id | name | default |
+|---|---|---|
+| 0x1a5 / 0x1a6 / 0x1a7 / 0x1a8 | ShadowColorMatrix Black / FillColor / Saturation / White | 0.0 / colour / 1.0 / 1.0 |
+| 0x1a9 | ShadowDistanceOffset | -50 |
+| 0x1aa | ShadowHeight | 250 |
+| 0x1ab | ShadowOffset | (0, 10) |
+| 0x1ac | ShadowOpacity | 1.0 (clamped 0..1) |
+| 0x1ad | ShadowRadius | 25 |
+| 0x1ae | ShadowVibrancyContribution | 1.0 |
+Probable but less certain (same contiguous run): 0x19b / 0x19c RefractionDistance0 / 1 = -2.5 / -1.5; 0x19e / 0x19f SDRGradientDistance0 / 1 = 0.97 / 0.0; 0x1a1 SDRHoldingToneWhite = 200.
+**Not resolved:** the ids below 0x19b (0x14d..0x196): other filters' keys are interleaved there, so the simple alphabetical placement drifts (e.g. 0x164 = 30 is the blur radius by the function name, but the placement gives another key). Resolve with the key table of QuartzCore (the code that maps a key name to its id) or by setting each named key on a real `CAFilter` and observing which id changes in the render.
