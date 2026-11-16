@@ -10,7 +10,7 @@ Goal (owner, 2026-11-16): applications that need Liquid Glass use it **directly,
 |---|---|---|---|
 | 1 | QuartzCore (client API) | `CAFilter` types `glassBackground` / `glassForeground` with the real keys, order and atoms; differential test vs the real QuartzCore | **done** (2026-11-16, identical on FreeBSD) |
 | 2 | QuartzCore (client API) | `CASDFLayer`, `CASDFElementLayer`, the `CASDF*Effect` classes with the real names and defaults; differential test vs the real QuartzCore | **done** (2026-11-16; `CAPortalLayer` still to do) |
-| 3 | QuartzCore (render stream) | encode / decode filters with atom keys and SDF layers in the command stream (`ca_scene`) | to do |
+| 3 | WindowServer (render stream) | decode filters with atom keys and the SDF layers in the command stream (`ca_scene.c`); formats read in docs/RENDER-STREAM.md | formats **read**, decoder not extended yet (needs a real stream with a glass filter to test) |
 | 4 | WindowServer | render the glass filter in `compositor_gl.c` (GLES 2) and the CPU fallback `blur.c`, replacing the fitted `ws_glass` approximation: the shader is our own GLSL ES file, written from docs/ALGORITHM-*.md, same constant block layout as Apple's; mip chain of the backdrop | to do |
 | 5 | AppKit | `NSGlassEffectView` / `NSGlassEffectContainerView` building the same layer tree | to do |
 | 6 | tests | the captures of `tools/glass-probe` as the oracle: render the same scene through the whole path and compare with `captures/<ver>/*.png` within a tolerance (CI) | to do |
