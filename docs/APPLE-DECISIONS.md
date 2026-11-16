@@ -19,6 +19,18 @@ Liquid Glass is not an AppKit effect first: it is built from **`CASDFLayer`** (a
 | Output | `minimum` -10000 (slider -200..0), `maximum` 100 (0..200) |
 Colours are in "Generic Gray Gamma 2.2". Angles in radians. The sliders tell the intended ranges (the real inspector uses them).
 
+## How an effect becomes a render record (`configureLayer:transaction:`, decompiled)
+`-[CASDFGlassDisplacementEffect configureLayer:transaction:]` (0x7ff80d3b34e0) reads four doubles from the effect and writes one record (a struct of the render transaction):
+| offset | content |
+|---|---|
+| +0x88 | effect kind byte = **7** (glass displacement) |
+| +0x18 | float `height` (as is) |
+| +0x1c | float `curvature`, **clamped to 0..1** |
+| +0x20 | float `angle` |
+| +0x24 | float `maskOffset` |
+| +0x28 .. +0x80 | zero (other kinds use these) |
+The order of the properties fetched is height, curvature, angle, maskOffset (the property accessors are looked up by their selectors; names confirmed by the class dump, the mapping of the last two to +0x20 / +0x24 is from the order of the calls: UNVERIFIED by a second source). The kind numbers of the other effects are read the same way (to do: GlassHighlight, Shadow, KeyFillHighlight ...).
+
 ## The pearOS values compared with these
 The pearOS Arch settings (blur 2, corner radius 16 ...) describe a blur-based approximation; Apple's glass is a displacement (refraction) and highlight driven by a distance field of the shape, with `height` 20 and `curvature` 1 as the neutral state. Where the two disagree, Apple's numbers here win.
 
