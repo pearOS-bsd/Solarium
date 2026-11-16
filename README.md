@@ -22,3 +22,7 @@ There is no `Solarium.framework` on disk; the code is spread over existing frame
 4. Defaults of the material: pearOS settings (`docs/EVIDENCE.md`).
 
 Layer: 3 (UI), above `QuartzCore`, below `AppKit` (AppKit may use Solarium; Solarium must not use AppKit). Licence: BSD-2-Clause, written from scratch; GPL code (for example the KWin "better blur" fork used in the Arch edition of pearOS) is **not** copied: only numbers and public techniques.
+
+
+## Reference captures from a real Mac
+`tools/glass-probe`: a macOS 26 program (builds with the Command Line Tools only) that renders the real glass over the same test background as `tools/vk-run` and saves screenshots plus a dump of the layer tree, filters and SDF effects. Run it on a Mac with a GPU and send the zip back; it is what our implementation is compared against.
