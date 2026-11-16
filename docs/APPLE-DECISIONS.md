@@ -78,16 +78,64 @@ Two code paths: with an SDF (`emit_sdf_bounds`, pipeline flag 0x45) or without (
 - glassBackground: SourceSublayerName; InnerRefractionAmount/Height; OuterRefractionAmount/Height; RefractionDistance0/1; RefractionOpacity; BlurRadius; BlurOpacity0..4; BlurDistance0..4; FaceOpacity; FaceColorMatrix{White,Black,Saturation,FillColor}; BleedAmount/Height/BlurRadius/Distance0/Distance1/Opacity/DarkenBlend; BleedColorMatrix{...}; ShadowOffset/Amount/Height/Opacity/DistanceOffset/BlurRadius/Radius; ShadowColorMatrix{...}; SDRHoldingToneEnabled/White; SDRGradientDistance0/1; SDRShadowOpacity; MaxHeadroom; ShadowVibrancyContribution; Clamp; ClampPreserveHue.
 - glassForeground: SourceSublayerName; RefractionAmount/Height/Offset/Angle; AberrationAmount/Height/Offset/Angle; EdgeStart/End; EdgeOpacityStart/End.
 
-### Numeric id -> name (partly solved)
-The ids that `GlassBackgroundFilter::render` uses are positions in the **alphabetical list of all CAFilter input keys** (the table is global, other filters' keys sit in between). Anchored on `ShadowOffset` = 0x1ab (it is the only vec2, default (0,10); `ShadowRadius` = 0x1ad default 25 and the function `get_glass_filter_shadow_blur_radius` agree), the **tail is contiguous and verified by type and default**:
-| id | name | default |
+### Numeric id -> name (SOLVED, read from the real `CAInternAtom`, `tools/filter-atoms.m`)
+The ids are the **atoms** QuartzCore interns for the key names (`CAInternAtom("inputShadowOffset", 0)` = 0x1ab ...). This replaces the earlier guess by alphabetical order, which was only right near the end. glassBackground, sorted by id, with the default `GlassBackgroundFilter::render` uses when the key is absent:
+| id | key (`input...`) | default |
 |---|---|---|
-| 0x1a5 / 0x1a6 / 0x1a7 / 0x1a8 | ShadowColorMatrix Black / FillColor / Saturation / White | 0.0 / colour / 1.0 / 1.0 |
+| 0x14d | BleedAmount | 400 |
+| 0x14e | BleedBlurRadius | (function get_glass_filter_bleed_blur_radius) |
+| 0x14f | BleedColorMatrixBlack | 0.0 |
+| 0x150 | BleedColorMatrixFillColor | colour |
+| 0x151 | BleedColorMatrixSaturation | 1.0 |
+| 0x152 | BleedColorMatrixWhite | 1.0 |
+| 0x153 | BleedDarkenBlend | 0 (int) |
+| 0x154 | BleedDistance0 | -400 |
+| 0x155 | BleedDistance1 | -42 |
+| 0x156 | BleedHeight | 500 |
+| 0x157 | BleedOpacity | 0.2 |
+| 0x15a | BlurDistance0 | -450 |
+| 0x15b | BlurDistance1 | -3 |
+| 0x15c | BlurDistance2 | -0.0 |
+| 0x15d | BlurDistance3 | 0.0 |
+| 0x15e | BlurDistance4 | - |
+| 0x15f | BlurOpacity0 | 1.0 |
+| 0x160 | BlurOpacity1 | 0.1 |
+| 0x161 | BlurOpacity2 | 0.1 |
+| 0x162 | BlurOpacity3 | 0.4 |
+| 0x163 | BlurOpacity4 | - |
+| 0x164 | BlurRadius | 30 |
+| 0x166 | Clamp | 0.0 |
+| 0x167 | ClampPreserveHue | 0 (int) |
+| 0x176 | FaceColorMatrixBlack | 0.0 |
+| 0x177 | FaceColorMatrixFillColor | colour |
+| 0x178 | FaceColorMatrixSaturation | 1.0 |
+| 0x179 | FaceColorMatrixWhite | 1.0 |
+| 0x17a | FaceOpacity | 1.0 |
+| 0x182 | InnerRefractionAmount | -150 |
+| 0x183 | InnerRefractionHeight | 60 |
+| 0x187 | MaxHeadroom | 1.2 |
+| 0x18b | OuterRefractionAmount | 100 |
+| 0x18c | OuterRefractionHeight | 50 |
+| 0x195 | RefractionDistance0 | -11 |
+| 0x196 | RefractionDistance1 | -3 |
+| 0x199 | RefractionOpacity | 0.75 |
+| 0x19b | SDRGradientDistance0 | -2.5 |
+| 0x19c | SDRGradientDistance1 | -1.5 |
+| 0x19d | SDRHoldingToneEnabled | 0 (int) |
+| 0x19e | SDRHoldingToneWhite | 0.97 |
+| 0x19f | SDRShadowOpacity | 0.0 |
+| 0x1a1 | ShadowAmount | 200 |
+| 0x1a2 | ShadowBlurRadius | (function get_glass_filter_shadow_blur_radius) |
+| 0x1a5 | ShadowColorMatrixBlack | 0.0 |
+| 0x1a6 | ShadowColorMatrixFillColor | colour |
+| 0x1a7 | ShadowColorMatrixSaturation | 1.0 |
+| 0x1a8 | ShadowColorMatrixWhite | 1.0 |
 | 0x1a9 | ShadowDistanceOffset | -50 |
 | 0x1aa | ShadowHeight | 250 |
-| 0x1ab | ShadowOffset | (0, 10) |
-| 0x1ac | ShadowOpacity | 1.0 (clamped 0..1) |
+| 0x1ab | ShadowOffset | vec2 (0, 10) |
+| 0x1ac | ShadowOpacity | 1.0 |
 | 0x1ad | ShadowRadius | 25 |
 | 0x1ae | ShadowVibrancyContribution | 1.0 |
-Probable but less certain (same contiguous run): 0x19b / 0x19c RefractionDistance0 / 1 = -2.5 / -1.5; 0x19e / 0x19f SDRGradientDistance0 / 1 = 0.97 / 0.0; 0x1a1 SDRHoldingToneWhite = 200.
-**Not resolved:** the ids below 0x19b (0x14d..0x196): other filters' keys are interleaved there, so the simple alphabetical placement drifts (e.g. 0x164 = 30 is the blur radius by the function name, but the placement gives another key). Resolve with the key table of QuartzCore (the code that maps a key name to its id) or by setting each named key on a real `CAFilter` and observing which id changes in the render.
+| 0x1af | SourceSublayerName | - |
+Notes: the value of an *int* key is 0 when absent; `inputBlurRadius` 30 is scaled by `1.6 * scale`; the *ColorMatrix* keys come in groups (Black / FillColor / Saturation / White) that feed `ColorMatrix::set_ycc_composite`; ids 0x13c..0x172, 0x193, 0x194, 0x197, 0x198 and 0x1af belong to glassForeground / shared (`SourceSublayerName` = 0x1af; foreground: Aberration* 0x13c..0x13f, Edge* 0x16f..0x172, Refraction* 0x193 0x194 0x197 0x198).
+Read of the table: InnerRefraction 0x182/0x183 = -150 / 60, OuterRefraction 0x18b/0x18c = 100 / 50, RefractionDistance 0x195/0x196 = -11 / -3, RefractionOpacity 0x199 = 0.75, MaxHeadroom 0x187 = 1.2. **Correction:** my earlier "probable" mapping (RefractionDistance0/1 = 0x19b/0x19c, SDRHoldingToneWhite = 0x1a1) was wrong: 0x19b/0x19c are SDRGradientDistance0/1 (-2.5 / -1.5), 0x1a1 is ShadowAmount (200).
