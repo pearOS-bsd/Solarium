@@ -139,3 +139,28 @@ The ids are the **atoms** QuartzCore interns for the key names (`CAInternAtom("i
 | 0x1af | SourceSublayerName | - |
 Notes: the value of an *int* key is 0 when absent; `inputBlurRadius` 30 is scaled by `1.6 * scale`; the *ColorMatrix* keys come in groups (Black / FillColor / Saturation / White) that feed `ColorMatrix::set_ycc_composite`; ids 0x13c..0x172, 0x193, 0x194, 0x197, 0x198 and 0x1af belong to glassForeground / shared (`SourceSublayerName` = 0x1af; foreground: Aberration* 0x13c..0x13f, Edge* 0x16f..0x172, Refraction* 0x193 0x194 0x197 0x198).
 Read of the table: InnerRefraction 0x182/0x183 = -150 / 60, OuterRefraction 0x18b/0x18c = 100 / 50, RefractionDistance 0x195/0x196 = -11 / -3, RefractionOpacity 0x199 = 0.75, MaxHeadroom 0x187 = 1.2. **Correction:** my earlier "probable" mapping (RefractionDistance0/1 = 0x19b/0x19c, SDRHoldingToneWhite = 0x1a1) was wrong: 0x19b/0x19c are SDRGradientDistance0/1 (-2.5 / -1.5), 0x1a1 is ShadowAmount (200).
+
+## The glass foreground filter (`CA::OGL::GlassForegroundFilter::render`, 0x7ff80d2392d0; decompiled with REA)
+Small and complete: 13 keys (ids from the real `CAInternAtom`), pipeline flag **0x48** (no SDF) or **0x49** (with SDF: shader `glass_foreground_sdf`, then `emit_sdf_bounds`).
+| id | key (`input...`) | default | stored as |
+|---|---|---|---|
+| 0x193 | RefractionAmount | -150 | as is |
+| 0x197 | RefractionHeight | 100 | **1 / height** |
+| 0x198 | RefractionOffset | -10 | as is |
+| 0x194 | RefractionAngle | 0 | sin, cos (`sincosf`) |
+| 0x13c | AberrationAmount | -15 | as is |
+| 0x13e | AberrationHeight | 20 | **1 / height** |
+| 0x13f | AberrationOffset | 0 | as is |
+| 0x13d | AberrationAngle | 0 | sin, cos |
+| 0x172 | EdgeStart | -4.5 | as is |
+| 0x16f | EdgeEnd | -3.0 | as is |
+| 0x171 | EdgeOpacityStart | 0 | as is |
+| 0x170 | EdgeOpacityEnd (the 4th Edge key; read from the id order) | 1.0 | as is |
+Constant block, in the order the code writes it (each line = 4 floats in the Context, which is the Metal constant buffer of `glass_foreground*`):
+1. `(x, y, z, w)` = the layer transform scaled by the layer scale and divided by the source size (the 2x2 matrix part),
+2. `(RefractionAmount, 1/RefractionHeight, RefractionOffset, AberrationAmount)`,
+3. `(AberrationOffset, 1/AberrationHeight, sin(AberrationAngle), cos(AberrationAngle))`,
+4. `(EdgeStart, EdgeEnd, EdgeOpacityStart, EdgeOpacityEnd)`,
+5. `(sin(RefractionAngle), cos(RefractionAngle), 0, 0)`.
+(The exact order inside lines 2 and 3 follows the stores at Context +0xB0.. as decompiled; two adjacent pairs are written as 8-byte halves, so the grouping above is by pairs of floats and is **not yet checked against the shader's loads**.)
+Meaning, from the names and the maths: a refraction displacement with amount/height/offset/angle (angle given as a direction), a chromatic aberration with the same four parameters, and an edge band (`EdgeStart..EdgeEnd`, with opacity ramping from `EdgeOpacityStart` to `EdgeOpacityEnd`).
