@@ -8,3 +8,5 @@ Needs a Mac with **macOS 26 or newer** and the Xcode Command Line Tools (`xcode-
 
 Writes `captures/<macOS>-<arch>/` in the repository (`background.png`, one `.png` and one `.txt` per scene); then `git add captures && git commit && git push`. The binary is not committed (.gitignore).
 Scenes: regular 340x200 radius 60, clear 340x200 radius 60, regular 340x200 radius 100, regular 200x200 (circle-like), regular 120x120. Edit the table at the end of `main.m` to add more.
+
+`PEAR_LIGHT=1 ./probe` runs the scenes in the Aqua (light) appearance instead of the system one (also in `tools/cc-glass-probe`); the captures made so are in `captures/27.0-arm64-light/`.

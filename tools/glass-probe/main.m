@@ -128,6 +128,7 @@ int main(int argc, char **argv) {
         gOut = argc > 1 ? @(argv[1]) : [NSHomeDirectory() stringByAppendingPathComponent:@"Desktop/glass-probe-out"];
         [[NSFileManager defaultManager] createDirectoryAtPath:gOut withIntermediateDirectories:YES attributes:nil error:nil];
         NSApplication *app = [NSApplication sharedApplication]; [app setActivationPolicy:NSApplicationActivationPolicyRegular];
+        if (getenv("PEAR_LIGHT")) [app setAppearance:[NSAppearance appearanceNamed:NSAppearanceNameAqua]];
         // background alone for reference
         NSBitmapImageRep *r = (NSBitmapImageRep *)TestBackground().representations.firstObject;
         [[r representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:[gOut stringByAppendingString:@"/background.png"] atomically:YES];
