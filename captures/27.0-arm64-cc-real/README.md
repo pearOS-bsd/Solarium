@@ -1,0 +1,3 @@
+Real Control Center of macOS 27.0 (M1), the window alone (`screencapture -l <window id>`, 656 x 964 with the shadow), dark appearance, SSH-less: the capture script runs inside Terminal and polls the window list; the panel closes if Terminal is activated while it is open.
+The window capture holds only what the panel itself draws: the glass backdrop is composed by the render server over the screen, so the controls show as dark translucent shapes (about rgb 20) over black, with the hairline rim and the soft shadow of the whole window. Tiles are separate shapes; there is no panel body.
+Layout of this configuration (window origin 0,0): see the image; round buttons 64, pills 140 x 64, tall tile 140 x 140, sliders 292 x 64.
